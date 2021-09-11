@@ -1,7 +1,7 @@
 trigger:
  branches:
    include:
-     - realease-pipeline
+     - realease-pipeline1
 
 variables:
   buildConfiguration: 'Release'
@@ -18,7 +18,7 @@ stages:
           - npm
         
         variables:
-          wwwrootDir: 'Something.Web/wwwroot'
+          wwwrootDir: 'Somethingto/wwwroot'
           dotnetSdkVersion: '3.1.300'
         
         steps:
@@ -81,7 +81,7 @@ stages:
             - task: AzureWebApp@1
               displayName: 'Azure App Service Deploy: website'
               inputs:
-                azureSubscription: 'Something.Web'
-                appName: : '$(WebAppName)'
+                azureSubscription: 'Somethingto'
+                appName: '$(WebAppName)'
                 appType: webAppLinux
                 package: '$(Pipline.Workspace)/drop/$(buildConfiguration)/*.zip'
