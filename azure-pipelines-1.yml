@@ -36,19 +36,27 @@ stages:
           displayName: 'Write build info'
           workingDirectory: '$(Build.SourcesDirectory)'
 
-        - task: DotNetCoreCLI@2
-          displayName: 'Restore project dependencies'
-          inputs:
-            command: 'restore'
-            projects: '**/*.csproj'
+#        - task: DotNetCoreCLI@2
+ #         displayName: 'Restore project dependencies'
+  #        inputs:
+   #         command: 'restore'
+    #        projects: '**/*.csproj'
         
-        
-        - task: DotNetCoreCLI@2
-          displayName: 'Build the project - $(buildConfiguration)'
+        - task: Ant@1
           inputs:
-            command: 'build'
-            arguments: '--no-restore --configuration $(buildConfiguration)'
-            projects: '**/*.csproj'
+            buildFile: 'build.xml'
+            options: '***'
+            targets: 'default'
+            publishJUnitResults: true
+            testResultsFiles: '**/TEST-*.xml'
+            javaHomeOption: 'JDKVersion'
+       
+ #       - task: DotNetCoreCLI@2
+  #        displayName: 'Build the project - $(buildConfiguration)'
+   #       inputs:
+    #        command: 'build'
+     #       arguments: '--no-restore --configuration $(buildConfiguration)'
+      #      projects: '**/*.csproj'
 
         - task: DotNetCoreCLI@2
           displayName: 'Publish the project - $(buildConfiguration)'
