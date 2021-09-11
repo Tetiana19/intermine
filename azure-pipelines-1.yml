@@ -1,7 +1,7 @@
 trigger:
  branches:
    include:
-     - realease-pipeline
+     - realease-pipeline1
 
 variables:
   buildConfiguration: 'Release'
@@ -18,30 +18,31 @@ stages:
           - npm
         
         variables:
-          wwwrootDir: 'Something.Web/wwwroot'
-          dotnetSdkVersion: '3.1.300'
+          wwwrootDir: 'intermine/webapp'
+          dotnetSdkVersion: '2.2.104'
         
         steps:
         - task: UseDotNet@2
           displayName: 'User .Net Core SDK $(dotnetSdkVersion)'
           inputs:
-            version: '$(dotnetSdkVersion)'
+            version: '$(wwwrootDir)'
 
         - task: Npm@1
           displayName: 'Run npm install'
           inputs:
             verbose: false
 
-        - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > build.txt'
+        - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
           displayName: 'Write build info'
-          workingDirectory: $(wwwrootDir)
+          workingDirectory: '$(Build.SourcesDirectory)'
 
         - task: DotNetCoreCLI@2
           displayName: 'Restore project dependencies'
           inputs:
             command: 'restore'
             projects: '**/*.csproj'
-
+        
+        
         - task: DotNetCoreCLI@2
           displayName: 'Build the project - $(buildConfiguration)'
           inputs:
@@ -52,7 +53,7 @@ stages:
         - task: DotNetCoreCLI@2
           displayName: 'Publish the project - $(buildConfiguration)'
           inputs:
-            command: publish
+            command: 'publish'
             projects: '**/*.csproj'
             publishWebProjects: false
             arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)'
@@ -81,7 +82,7 @@ stages:
             - task: AzureWebApp@1
               displayName: 'Azure App Service Deploy: website'
               inputs:
-                azureSubscription: 'Something.Web'
-                appName: : '$(WebAppName)'
+                azureSubscription: 'Somethingto'
+                appName: '$(WebAppName)'
                 appType: webAppLinux
-                package: '$(Pipline.Workspace)/drop/$(buildConfiguration)/*.zip'
+                package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
