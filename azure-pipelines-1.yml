@@ -83,4 +83,4 @@ stages:
                 azureSubscription: 'Somethingto'
                 appName: '$(WebAppName)'
                 appType: webAppLinux
-                package: '$(Pipline.Workspace)/drop/$(buildConfiguration)/*.zip'
+ #               package: '$(Pipline.Workspace)/drop/$(buildConfiguration)/*.zip'
