@@ -36,11 +36,19 @@ stages:
           displayName: 'Write build info'
           workingDirectory: '$(Build.SourcesDirectory)'
 
-        - task: NuGet@0
+  #      - task: DotNetCoreCLI@2
+   #       displayName: 'Restore project dependencies'
+   #       inputs:
+   #         command: 'restore'
+   #         projects: 
+        
+        - task: DotNetCoreCLI@2
           displayName: 'Restore project dependencies'
           inputs:
             command: 'restore'
-           # projects: '**/*.csproj'
+            projects: '''**/*.csproj'''
+            feedsToUse: 'select'
+            vstsFeed: 'a2a9ac7d-87c2-42ab-ba84-94e584924b4f'
 
         - task: DotNetCoreCLI@2
           displayName: 'Build the project - $(buildConfiguration)'
