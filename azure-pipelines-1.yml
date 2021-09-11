@@ -18,7 +18,7 @@ stages:
           - npm
         
         variables:
-          wwwrootDir: 'Somethingto/wwwroot'
+          wwwrootDir: 'Somethingto'
           dotnetSdkVersion: '3.1.300'
         
         steps:
