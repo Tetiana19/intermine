@@ -18,7 +18,7 @@ stages:
           - npm
         
         variables:
-          wwwrootDir: 'Somethingto/Somethingto'
+          wwwrootDir: '/home/tetiana/Somthingto'
           dotnetSdkVersion: '3.1.300'
         
         steps:
