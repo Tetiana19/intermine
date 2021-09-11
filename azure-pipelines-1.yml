@@ -19,7 +19,7 @@ stages:
         
         variables:
           wwwrootDir: 'intermine/webapp'
-          dotnetSdkVersion: '2.2.x'
+          dotnetSdkVersion: '2.2.104'
         
         steps:
         - task: UseDotNet@2
