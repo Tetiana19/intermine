@@ -1,33 +1,56 @@
-# Starter pipeline
-# Start with a minimal pipeline that you can customize to build and deploy your code.
-# Add steps that build, run tests, deploy, and more:
-# https://aka.ms/yaml
+ext {
+    imVersion = "5.0.3"
+    taskGroup = "InterMine"
+    minePropertyFileName = "testmodel.properties"
+    minePropertyFile = "${System.env.HOME}/.intermine/$minePropertyFileName"
+    println "Using properties file: '$minePropertyFile' "
+}
 
-trigger:
-- dev
+subprojects {
+    apply plugin: 'java'
 
-pool:
-  vmImage: ubuntu-latest
+    sourceCompatibility = 1.8
+    targetCompatibility = 1.8
 
-stages:
-- stage: CI
-  displayName: CI Stage
-  jobs:
-  - job: build
-    displayName: Build
-    steps:
-    - script: echo This is a BUILD job
-      displayName: 'Build project'
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        maven {
+            url 'http://www.ebi.ac.uk/intact/maven/nexus/content/repositories/ebi-repo/'
+        }
+        maven { url 'https://clojars.org/repo' }
+    }
 
-- stage: CD
-  displayName: CD Stage
-  jobs:
-  - deployment: deploy
-    displayName: Deploy
-    environment: Dev
-    strategy:
-     runOnce:
-        deploy:
-          steps:
-          - script: echo This is a DEPLOYMENT job
-            displayName: 'Deploy project'
+
+    configurations {
+        commonResources
+    }
+
+    dependencies {
+        compile group: 'ant', name: 'ant', version: '1.6.5'
+        compile group: 'log4j', name: 'log4j', version: '1.2.17'
+        commonResources group: "org.intermine", name: "intermine-resources", version: imVersion
+    }
+
+    task copyMineProperties(type: Copy) {
+        description "Copies mine specific intermine.properties file (from .intermine directory) into resources output to be included in the war"
+        from minePropertyFile
+        into sourceSets.main.output.resourcesDir
+        rename { fileName -> fileName.replace("testmodel.properties", "intermine.properties") }
+        inputs.sourceFiles.stopExecutionIfEmpty()
+    }
+
+    task copyDefaultProperties(type: Copy) {
+        description "Copies default.intermine.properties file (from resources project) into resources output to be included in the war"
+        dependsOn 'processResources'
+        from({ zipTree(configurations.commonResources.singleFile) }) {
+            include "default.intermine.test.properties"
+        }
+        into sourceSets.main.output.resourcesDir
+        rename { fileName -> fileName.replace("default.intermine.test.properties", "default.intermine.properties") }
+    }
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.9'
+}
