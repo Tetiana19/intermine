@@ -1,56 +1,129 @@
-ext {
-    imVersion = "5.0.3"
-    taskGroup = "InterMine"
-    minePropertyFileName = "testmodel.properties"
-    minePropertyFile = "${System.env.HOME}/.intermine/$minePropertyFileName"
-    println "Using properties file: '$minePropertyFile' "
-}
+trigger:
+  branches:
+    include:
+    - terraform-pipeline
 
-subprojects {
-    apply plugin: 'java'
+variables:
+  buildConfiguration: 'Release'
+  ServiceConnnectionName: 'Tailspin.SpaceGame.Web.Full'
 
-    sourceCompatibility = 1.8
-    targetCompatibility = 1.8
+stages:
+- stage: 'Build'
+  displayName: 'Build the web application'
+  jobs: 
+  - job: 'Build'
+    displayName: 'Build job'
+    pool:
+      vmImage: 'ubuntu-18.04'
+      demands:
+      - npm
 
-    repositories {
-        mavenLocal()
-        mavenCentral()
-        maven {
-            url 'http://www.ebi.ac.uk/intact/maven/nexus/content/repositories/ebi-repo/'
-        }
-        maven { url 'https://clojars.org/repo' }
-    }
+    variables:
+      wwwrootDir: 'project'
+      dotnetSdkVersion: '3.1.300'
 
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Use .NET Core SDK $(dotnetSdkVersion)'
+      inputs:
+        version: '$(dotnetSdkVersion)'
 
-    configurations {
-        commonResources
-    }
+    - task: Npm@1
+      displayName: 'Run npm install'
+      inputs:
+        verbose: false
 
-    dependencies {
-        compile group: 'ant', name: 'ant', version: '1.6.5'
-        compile group: 'log4j', name: 'log4j', version: '1.2.17'
-        commonResources group: "org.intermine", name: "intermine-resources", version: imVersion
-    }
+    - script: './node_modules/.bin/node-sass $(wwwrootDir) --output $(wwwrootDir)'
+      displayName: 'Compile Sass assets'
 
-    task copyMineProperties(type: Copy) {
-        description "Copies mine specific intermine.properties file (from .intermine directory) into resources output to be included in the war"
-        from minePropertyFile
-        into sourceSets.main.output.resourcesDir
-        rename { fileName -> fileName.replace("testmodel.properties", "intermine.properties") }
-        inputs.sourceFiles.stopExecutionIfEmpty()
-    }
+    - task: gulp@1
+      displayName: 'Run gulp tasks'
 
-    task copyDefaultProperties(type: Copy) {
-        description "Copies default.intermine.properties file (from resources project) into resources output to be included in the war"
-        dependsOn 'processResources'
-        from({ zipTree(configurations.commonResources.singleFile) }) {
-            include "default.intermine.test.properties"
-        }
-        into sourceSets.main.output.resourcesDir
-        rename { fileName -> fileName.replace("default.intermine.test.properties", "default.intermine.properties") }
-    }
-}
+    - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+      displayName: 'Write build info'
+      workingDirectory: $(wwwrootDir)
 
-task wrapper(type: Wrapper) {
-    gradleVersion = '4.9'
-}
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore project dependencies'
+      inputs:
+        command: 'restore'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build the project - $(buildConfiguration)'
+      inputs:
+        command: 'build'
+        arguments: '--no-restore --configuration $(buildConfiguration)'
+        projects: '**/*.csproj'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish the project - $(buildConfiguration)'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/$(buildConfiguration)'
+        zipAfterPublish: true
+
+    - publish: '$(Build.ArtifactStagingDirectory)'
+      artifact: drop
+
+- stage: 'Dev'
+  displayName: 'Deploy to the dev environment'
+  dependsOn: Build
+  jobs:
+  - job: Provision
+    displayName: 'Provision Azure App Service'
+    pool:
+      vmImage: 'ubuntu-18.04'
+    variables:
+    - group: Release2
+    steps:
+    - script: |
+        # Exit when any command returns a failure status.
+        set -e
+
+        # Write terraform.tfvars.
+        echo 'resource_group_location = "'$(ResourceGroupLocation)'"' | tee terraform.tfvars
+        # Write backend.tfvars.
+        echo 'resource_group_name = "tf-storage-rg"' | tee backend.tfvars
+        echo 'storage_account_name = "'$(StorageAccountName)'"' | tee -a backend.tfvars
+        echo 'container_name = "tfstate"' | tee -a backend.tfvars
+        echo 'key = "terraform.tfstate"' | tee -a backend.tfvars
+
+        # Initialize Terraform.
+        terraform init -input=false -backend-config="backend.tfvars"
+        # Apply the Terraform plan.
+        terraform apply -input=false -auto-approve
+
+        # Get the App Service name for the dev environment.
+        WebAppNameDev=$(terraform output --raw appservice_name)
+
+        # Write the WebAppNameDev variable to the pipeline.
+        echo "##vso[task.setvariable variable=WebAppNameDev;isOutput=true]$WebAppNameDev"
+      name: 'RunTerraform'
+      displayName: 'Run Terraform'
+      env:
+        ARM_CLIENT_ID: $(ARM_CLIENT_ID)
+        ARM_CLIENT_SECRET: $(ARM_CLIENT_SECRET)
+        ARM_TENANT_ID: $(ARM_TENANT_ID)
+        ARM_SUBSCRIPTION_ID: $(ARM_SUBSCRIPTION_ID)
+  - deployment: Deploy
+    dependsOn: Provision
+    variables:
+      WebAppNameDev: $[ dependencies.Provision.outputs['RunTerraform.WebAppNameDev'] ]
+    pool:
+      vmImage: 'ubuntu-18.04'
+    environment: dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: $(ServiceConnnectionName)
+              appName: '$(WebAppNameDev)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
